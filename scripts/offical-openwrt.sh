@@ -65,7 +65,7 @@ mkdir parted
 cp luci-app-diskman/Parted.Makefile parted/Makefile
 
 # Add luci-theme-argon
-git clone --depth=1 https://github.com/jerrykuku/luci-theme-argon
+git clone -b 19.07_stable --depth=1 https://github.com/jerrykuku/luci-theme-argon
 
 # Add smartdns
 svn co https://github.com/pymumu/smartdns/trunk/package/openwrt ../smartdns

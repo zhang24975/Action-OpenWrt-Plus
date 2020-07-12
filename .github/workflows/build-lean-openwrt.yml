@@ -16,17 +16,17 @@ on:
     branches:
       - master
     paths:
-      - 'config/lean/*.config'
+      - 'config/lean/gdock-lean-openwrt.config'
   schedule:
     - cron: 0 18 * * *
-  watch:
-    types: started
+#  watch:
+#    types: started
 
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
   REPO_BRANCH: master
-  CONFIG_FILE: config/lean/*.config
-  DEVICE: openwrt-ipq40xx-p2w_r619ac-128m
+  CONFIG_FILE: config/lean/gdock-lean-openwrt.config
+  DEVICE: openwrt-ipq40xx-generic-p2w_r619ac-128m
   DIY_SH: scripts/lean-openwrt.sh
   SSH_ACTIONS: false
   KMODS_IN_FIRMWARE: false
@@ -49,23 +49,27 @@ jobs:
       run: |
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
         sudo -E apt-get -qq update
-        sudo -E apt-get -qq install $(curl -fsSL git.io/depends-ubuntu-1804)
+        sudo -E apt-get -qq install $(curl -fsSL git.io/depends-ubuntu-1804) tree
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
         sudo timedatectl set-timezone "$TZ"
+
     - name: Clone Source Code
       run: |
         df -hT $PWD
         git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
+
     - name: Update Feeds
       run: |
         cd openwrt
         echo "::set-env name=OPENWRTROOT::$PWD"
         ./scripts/feeds update -a
+
     - name: Install Feeds
       run: |
         cd $OPENWRTROOT
         ./scripts/feeds install -a
+
     - name: Load Custom Configuration
       run: |
         [ -e files ] && mv files $OPENWRTROOT/files
@@ -73,6 +77,7 @@ jobs:
         chmod +x $DIY_SH
         cd $OPENWRTROOT
         ../$DIY_SH
+
     - name: SSH Connection To Actions
       uses: P3TERX/debugger-action@master
       if: env.SSH_ACTIONS == 'true' || contains(github.event.action, 'ssh')
@@ -89,6 +94,7 @@ jobs:
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
+
     - name: Compile Packages
       id: compile
       run: |
@@ -101,6 +107,7 @@ jobs:
         make package/compile -j$(nproc) IGNORE_ERRORS=1 || make package/compile -j1 V=s IGNORE_ERRORS=1
         make package/index
         echo "::set-output name=status::success"
+
     - name: Set Environment Variable
       if: steps.compile.outputs.status == 'success'
       run: |
@@ -114,6 +121,7 @@ jobs:
         SUBTARGET=$(basename `pwd`)
         echo "::set-env name=SUBTARGET::$SUBTARGET"
         echo "::set-env name=FIRMWARE::$PWD"
+
     - name: Generate Firmware
       if: steps.compile.outputs.status == 'success'
       id: generate
@@ -154,8 +162,8 @@ jobs:
       uses: actions/upload-artifact@master
       if: steps.generate.outputs.status == 'success'
       with:
-        name: config.seed
-        path: openwrt/bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/config.seed
+        name: config.buildinfo
+        path: openwrt/bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/config.buildinfo
         
     - name: Upload Packages-Server
       uses: actions/upload-artifact@master
@@ -214,19 +222,23 @@ jobs:
         zip -qr dl.zip dl
         cd $OPENWRTROOT/bin/targets/$TARGET/$SUBTARGET
         rm -rf packages pre-packages-server
+        tree -L 1
         echo "::set-output name=status::success"
+
     - name: Upload Firmware To CowTransfer
       if: steps.organize.outputs.status == 'success' && env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
       run: |
         curl -fsSL git.io/file-transfer | sh
         ./transfer cow --block 2621440 -s -p 64 --no-progress ${FIRMWARE} 2>&1 | tee cowtransfer.log
         echo "::warning file=Firmware-cowtransfer.com::$(cat cowtransfer.log | grep https)"
+
     - name: Upload Firmware To WeTransfer
       if: steps.organize.outputs.status == 'success' && env.UPLOAD_WETRANSFER == 'true' && !cancelled()
       run: |
         curl -fsSL git.io/file-transfer | sh
         ./transfer wet -s -p 16 --no-progress ${FIRMWARE} 2>&1 | tee wetransfer.log
         echo "::warning file=Firmware-wetransfer.com::$(cat wetransfer.log | grep https)"
+
     - name: Upload DL To CowTransfer
       if: steps.organize.outputs.status == 'success' && env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
       run: |

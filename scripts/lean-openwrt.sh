@@ -38,8 +38,7 @@ git clone --depth=1 -b master https://github.com/vernesong/OpenClash
 git clone --depth=1 https://github.com/rufengsuixing/luci-app-onliner
 
 # Add luci-app-adguardhome
-git clone --depth=1 https://github.com/rufengsuixing/luci-app-adguardhome
-
+git clone --depth = 1 https://github.com/kongfl888/luci-app-adguardhome
 # Add luci-app-diskman
 git clone --depth=1 https://github.com/lisaac/luci-app-diskman
 mkdir parted

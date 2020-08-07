@@ -18,7 +18,7 @@ on:
     paths:
       - 'config/lean/*.config'
   schedule:
-    - cron: 0 18 * * *
+    - cron: 0 18 * * 5
   watch:
     types: started
 

@@ -14,13 +14,13 @@ on:
     types: published
   push:
     branches:
-      - master
+      - main
     paths:
       - 'config/lean/*.config'
   schedule:
     - cron: 0 18 * * 5
-  watch:
-    types: started
+#  watch:
+#    types: started
 
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
@@ -28,7 +28,7 @@ env:
   CONFIG_FILE: config/lean/*.config
   DEVICE: openwrt-ipq40xx-generic-p2w_r619ac-128m
   DIY_SH: scripts/lean-openwrt.sh
-  SSH_ACTIONS: false
+  IPV6MOD_IN_FIRMWARE: true
   KMODS_IN_FIRMWARE: false
   UPLOAD_COWTRANSFER: true
   UPLOAD_WETRANSFER: true
@@ -41,7 +41,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@master
+      uses: actions/checkout@main
 
     - name: Initialization Environment
       env:
@@ -53,35 +53,30 @@ jobs:
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
         sudo timedatectl set-timezone "$TZ"
-
     - name: Clone Source Code
       run: |
         df -hT $PWD
         git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
-
     - name: Update Feeds
       run: |
         cd openwrt
         echo "::set-env name=OPENWRTROOT::$PWD"
         ./scripts/feeds update -a
-
     - name: Install Feeds
       run: |
         cd $OPENWRTROOT
         ./scripts/feeds install -a
-
     - name: Load Custom Configuration
       run: |
         [ -e files ] && mv files $OPENWRTROOT/files
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE $OPENWRTROOT/.config
-        chmod +x $DIY_SH
+        chmod +x scripts/*.sh
+        mv patch/enable-autocore.diff $OPENWRTROOT
         cd $OPENWRTROOT
         ../$DIY_SH
-
-    - name: SSH Connection To Actions
-      uses: P3TERX/debugger-action@master
-      if: env.SSH_ACTIONS == 'true' || contains(github.event.action, 'ssh')
-
+        ../scripts/preset-clash-core.sh armv7
+        ../scripts/preset-terminal-tools.sh
+        git apply enable-autocore.diff
     - name: Download Package
       id: package
       run: |
@@ -94,7 +89,6 @@ jobs:
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
-
     - name: Compile Packages
       id: compile
       run: |
@@ -106,11 +100,6 @@ jobs:
         make diffconfig
         make package/compile -j$(nproc) IGNORE_ERRORS=1 || make package/compile -j1 V=s IGNORE_ERRORS=1
         make package/index
-        echo "::set-output name=status::success"
-
-    - name: Set Environment Variable
-      if: steps.compile.outputs.status == 'success'
-      run: |
         cd $OPENWRTROOT/bin/packages/*
         PLATFORM=$(basename `pwd`)
         echo "::set-env name=PLATFORM::$PLATFORM"
@@ -121,7 +110,7 @@ jobs:
         SUBTARGET=$(basename `pwd`)
         echo "::set-env name=SUBTARGET::$SUBTARGET"
         echo "::set-env name=FIRMWARE::$PWD"
-
+        echo "::set-output name=status::success"
     - name: Generate Firmware
       if: steps.compile.outputs.status == 'success'
       id: generate
@@ -142,6 +131,15 @@ jobs:
             sed -i "s/target\//$TARGET\//g" files/etc/opkg/distfeeds.conf
             sed -i "s/platform/$PLATFORM/g" files/etc/opkg/distfeeds.conf
         fi
+        if "$IPV6MOD_IN_FIRMWARE" = 'true'
+        then
+            mkdir -p files/www/ipv6-modules
+            cp bin/packages/$PLATFORM/luci/luci-proto-ipv6* files/www/ipv6-modules
+            cp bin/packages/$PLATFORM/base/{ipv6helper*,odhcpd-ipv6only*,odhcp6c*,6in4*} "files/www/ipv6-modules"
+            cp bin/targets/$TARGET/$SUBTARGET/packages/{ip6tables*,kmod-nf-nat6*,kmod-ipt-nat6*,kmod-sit*,kmod-ip6tables-extra*} "files/www/ipv6-modules"
+            mkdir -p files/bin
+            cp ../scripts/ipv6-helper.sh files/bin/ipv6-helper
+        fi
         make package/install -j$(nproc) || make package/install -j1 V=s
         make target/install -j$(nproc) || make target/install -j1 V=s
         make checksum
@@ -159,56 +157,56 @@ jobs:
         zip -q -r packages-server.zip pre-packages-server/server
         
     - name: Upload Config
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@main
       if: steps.generate.outputs.status == 'success'
       with:
         name: config.buildinfo
         path: openwrt/bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/config.buildinfo
         
     - name: Upload Packages-Server
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@main
       if: steps.generate.outputs.status == 'success'
       with:
         name: packages-server
         path: openwrt/bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/pre-packages-server
         
     - name: Upload Packages Info
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@main
       if: steps.generate.outputs.status == 'success'
       with:
         name: ${{ env.DEVICE }}.manifest
         path: openwrt/bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/${{ env.DEVICE }}.manifest
         
     - name: Upload RootFS Archive
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@main
       if: steps.generate.outputs.status == 'success'
       with:
         name: ${{ env.DEVICE }}-rootfs.tar.gz
         path: openwrt/bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/${{ env.DEVICE }}-rootfs.tar.gz
         
     - name: Upload SquashFS Factory Image
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@main
       if: steps.generate.outputs.status == 'success'
       with:
         name: ${{ env.DEVICE }}-squashfs-nand-factory.ubi
         path: openwrt/bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/${{ env.DEVICE }}-squashfs-nand-factory.ubi
         
     - name: Upload SquashFS Sysupgrade Image
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@main
       if: steps.generate.outputs.status == 'success'
       with:
         name: ${{ env.DEVICE }}-squashfs-nand-sysupgrade.bin
         path: openwrt/bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/${{ env.DEVICE }}-squashfs-nand-sysupgrade.bin
         
     - name: Upload Fit uImage
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@main
       if: steps.generate.outputs.status == 'success'
       with:
         name: ${{ env.DEVICE }}-initramfs-fit-zImage.itb
         path: openwrt/bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/${{ env.DEVICE }}-initramfs-fit-zImage.itb
 
     - name: Upload Images Sha256sums
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@main
       if: steps.generate.outputs.status == 'success'
       with:
         name: sha256sums
@@ -219,34 +217,34 @@ jobs:
       if: steps.generate.outputs.status == 'success' && !cancelled()
       run: |
         cd $OPENWRTROOT
-        zip -qr dl.zip dl
+        zip -qr DL.zip dl
         cd $OPENWRTROOT/bin/targets/$TARGET/$SUBTARGET
         rm -rf packages pre-packages-server
         tree -L 1
+        cd $OPENWRTROOT/bin/targets/$TARGET/
+        curl -fsSL git.io/file-transfer | sh
+        df -hT $PWD
         echo "::set-output name=status::success"
-
     - name: Upload Firmware To CowTransfer
       if: steps.organize.outputs.status == 'success' && env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
       run: |
-        curl -fsSL git.io/file-transfer | sh
+        cd $OPENWRTROOT/bin/targets/$TARGET/
         ./transfer cow --block 2621440 -s -p 64 --no-progress ${FIRMWARE} 2>&1 | tee cowtransfer.log
-        echo "::warning file=Firmware-cowtransfer.com::$(cat cowtransfer.log | grep https)"
-
+        echo "::warning file=Firmware-Cowtransfer.com::$(cat cowtransfer.log | grep https)"
     - name: Upload Firmware To WeTransfer
       if: steps.organize.outputs.status == 'success' && env.UPLOAD_WETRANSFER == 'true' && !cancelled()
       run: |
-        curl -fsSL git.io/file-transfer | sh
+        cd $OPENWRTROOT/bin/targets/$TARGET/
         ./transfer wet -s -p 16 --no-progress ${FIRMWARE} 2>&1 | tee wetransfer.log
-        echo "::warning file=Firmware-wetransfer.com::$(cat wetransfer.log | grep https)"
-
+        echo "::warning file=Firmware-Wetransfer.com::$(cat wetransfer.log | grep https)"
     - name: Upload DL To CowTransfer
       if: steps.organize.outputs.status == 'success' && env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
       run: |
-        ./transfer cow --block 2621440 -s -p 64 --no-progress ${OPENWRTROOT}/dl.zip 2>&1 | tee cowtransfer-dl.log
-        echo "::warning file=DL-cowtransfer.com::$(cat cowtransfer-dl.log | grep https)"
+        cd $OPENWRTROOT/bin/targets/$TARGET/
+        ./transfer cow --block 2621440 -s -p 64 --no-progress ${OPENWRTROOT}/DL.zip 2>&1 | tee cowtransfer-dl.log
         
     - name: Upload DL To WeTransfer
       if: steps.organize.outputs.status == 'success' && env.UPLOAD_WETRANSFER == 'true' && !cancelled()
       run: |
-        ./transfer wet -s -p 16 --no-progress ${OPENWRTROOT}/dl.zip 2>&1 | tee wetransfer-dl.log
-        echo "::warning file=DL-wetransfer.com::$(cat wetransfer-dl.log | grep https)"
+        cd $OPENWRTROOT/bin/targets/$TARGET/
+        ./transfer wet -s -p 16 --no-progress ${OPENWRTROOT}/DL.zip 2>&1 | tee wetransfer-dl.log

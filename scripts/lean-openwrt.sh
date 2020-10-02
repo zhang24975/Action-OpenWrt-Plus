@@ -14,7 +14,7 @@ git clone --depth=1 https://github.com/fw876/helloworld
 
 # Add Project OpenWrt's autocore
 rm -rf autocore
-svn co https://github.com/project-openwrt/openwrt/branches/18.06-kernel5.4/package/lean/autocore
+svn co https://github.com/project-openwrt/openwrt/trunk/package/lean/autocore
 popd
 
 # Clone community packages to package/community
@@ -38,7 +38,10 @@ git clone --depth=1 -b master https://github.com/vernesong/OpenClash
 git clone --depth=1 https://github.com/rufengsuixing/luci-app-onliner
 
 # Add luci-app-adguardhome
-git clone --depth = 1 https://github.com/kongfl888/luci-app-adguardhome
+svn co https://github.com/Lienol/openwrt/trunk/package/diy/luci-app-adguardhome
+svn co https://github.com/Lienol/openwrt/trunk/package/diy/adguardhome
+
+
 # Add luci-app-diskman
 git clone --depth=1 https://github.com/lisaac/luci-app-diskman
 mkdir parted
@@ -59,11 +62,17 @@ git clone --depth=1 https://github.com/jerrykuku/luci-app-jd-dailybonus
 
 # Add luci-theme-argon
 git clone --depth=1 -b 18.06 https://github.com/jerrykuku/luci-theme-argon
+git clone --depth=1 https://github.com/jerrykuku/luci-app-argon-config
 rm -rf ../lean/luci-theme-argon
 
+# Add luci-theme-rosy
+svn co https://github.com/project-openwrt/openwrt/trunk/package/ctcgfw/luci-theme-rosy
+
 # Add tmate
-svn co https://github.com/project-openwrt/openwrt/trunk/package/ctcgfw/tmate
-svn co https://github.com/project-openwrt/openwrt/trunk/package/ctcgfw/msgpack-c
+git clone --depth=1 https://github.com/project-openwrt/openwrt-tmate
+
+# Add subconverter
+git clone --depth=1 https://github.com/tindy2013/openwrt-subconverter
 
 # Add gotop
 svn co https://github.com/project-openwrt/openwrt/trunk/package/ctcgfw/gotop

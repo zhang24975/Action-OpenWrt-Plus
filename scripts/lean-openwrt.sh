@@ -13,8 +13,8 @@ pushd package/lean
 git clone --depth=1 https://github.com/fw876/helloworld
 
 # Add Project OpenWrt's autocore
-rm -rf autocore
-svn co https://github.com/project-openwrt/openwrt/trunk/package/lean/autocore
+#rm -rf autocore
+#svn co https://github.com/project-openwrt/openwrt/trunk/package/lean/autocore
 popd
 
 # Clone community packages to package/community
@@ -116,3 +116,5 @@ sed -i 's/OpenWrt/G-DOCK/g' package/kernel/mac80211/files/lib/wifi/mac80211.sh
 
 echo '修改机器名称'
 sed -i 's/OpenWrt/G-DOCK/g' package/base-files/files/bin/config_generate
+# Change default shell to zsh
+sed -i 's/\/bin\/ash/\/usr\/bin\/zsh/g' package/base-files/files/etc/passwd
